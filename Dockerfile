@@ -7,7 +7,29 @@ ARG GRAALVM_VERSION=21.0.0
 
 ARG BUILD_VERSION_ARG=unset
 
-FROM golang:1.23-bookworm AS buildcontainer
+
+###
+# libsignal build
+FROM docker.io/rust:1.86-bookworm as builder-libsignal
+ARG LIBSIGNAL_CLIENT_VERSION
+ARG LIBSIGNAL_CLIENT_COMMIT_CHECK
+
+RUN apt-get update  \
+    && apt-get install -y --no-install-recommends \
+      clang libclang-dev cmake make protobuf-compiler git \
+      cargo \
+      ca-certificates \
+    && apt clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --branch v${LIBSIGNAL_CLIENT_VERSION} --depth 1 https://github.com/signalapp/libsignal.git && \
+    cd libsignal && \
+    #java/build_jni.sh desktop
+    cargo build --target x86_64-unknown-linux-gnu --release -p libsignal-jni && \
+    mkdir -p ../dist && \
+    ln target/x86_64-unknown-linux-gnu/release/libsignal_jni.so ../dist/
+
+FROM docker.io/golang:1.23-bookworm AS buildcontainer
 
 ARG SIGNAL_CLI_VERSION
 ARG LIBSIGNAL_CLIENT_VERSION
@@ -16,17 +38,19 @@ ARG GRAALVM_VERSION
 ARG BUILD_VERSION_ARG
 ARG SIGNAL_CLI_NATIVE_PACKAGE_VERSION
 
-COPY ext/libraries/libsignal-client/v${LIBSIGNAL_CLIENT_VERSION} /tmp/libsignal-client-libraries
+#COPY ext/libraries/libsignal-client/v${LIBSIGNAL_CLIENT_VERSION} /tmp/libsignal-client-libraries
+COPY --from=builder-libsignal /build/libsignal_jni.so /tmp/
 COPY ext/libraries/libsignal-client/signal-cli-native.patch /tmp/signal-cli-native.patch
 COPY ext/patches/signal-cli-native-arch.patch /tmp/signal-cli-native-arch.patch
 
 # use architecture specific libsignal_jni.so
+# TODO not used for aarch64?!
 RUN arch="$(uname -m)"; \
         case "$arch" in \
-            aarch64) cp /tmp/libsignal-client-libraries/arm64/libsignal_jni.so /tmp/libsignal_jni.so ;; \
-			armv7l) cp /tmp/libsignal-client-libraries/armv7/libsignal_jni.so /tmp/libsignal_jni.so ;; \
-            x86_64) cp /tmp/libsignal-client-libraries/x86-64/libsignal_jni.so /tmp/libsignal_jni.so ;; \
-			*) echo "Unknown architecture" && exit 1 ;; \
+            aarch64) ;; \
+            armv7l)  ;; \
+            x86_64)  ;; \
+            *) echo "Unknown architecture" && exit 1 ;; \
         esac;
 
 RUN dpkg-reconfigure debconf --frontend=noninteractive \
@@ -156,7 +180,7 @@ RUN cd /tmp/signal-cli-rest-api-src && go build -buildmode=plugin -o signal-cli-
 # is fixed we use the standard ubuntu image
 #FROM eclipse-temurin:21-jre-jammy
 
-FROM ubuntu:jammy
+FROM docker.io/ubuntu:jammy
 
 ENV GIN_MODE=release
 
