@@ -26,17 +26,21 @@ RUN mkdir dist
 # use architecture specific libsignal_jni.so
 # TODO not used for aarch64?!
 RUN arch="$(uname -m)"; \
-        case "$arch" in \
-            aarch64) echo "nothing to do" ;; \
-            armv7l)  echo "nothing to do" ;; \
+        git clone --branch v${LIBSIGNAL_CLIENT_VERSION} --depth 1 https://github.com/signalapp/libsignal.git \
+		&& cd libsignal \
+        && case "$arch" in \
+            aarch64) \
+			  cross build --target aarch64-unknown-linux-gnu --release -p libsignal-jni \
+			;; \
+            armv7l) \
+			  cross build --target armv7-unknown-linux-gnueabihf --release -p libsignal-jni \
+			;; \
             x86_64) \
-              git clone --branch v${LIBSIGNAL_CLIENT_VERSION} --depth 1 https://github.com/signalapp/libsignal.git && \
-              cd libsignal && \
-	      cargo build --target x86_64-unknown-linux-gnu --release -p libsignal-jni && \
-              ln target/x86_64-unknown-linux-gnu/release/libsignal_jni.so ../dist/ \
+              cargo build --target x86_64-unknown-linux-gnu --release -p libsignal-jni \
             ;; \
             *) echo "Unknown architecture" && exit 1 ;; \
-        esac;
+        esac \
+		&& ln target/*/release/libsignal_jni.so ../dist/
 
 FROM docker.io/golang:1.23-bookworm AS buildcontainer
 
@@ -47,10 +51,7 @@ ARG GRAALVM_VERSION
 ARG BUILD_VERSION_ARG
 ARG SIGNAL_CLI_NATIVE_PACKAGE_VERSION
 
-COPY --from=builder-libsignal /build/dist/ /tmp/libsignal-client-libraries/
-RUN cd /tmp/libsignal-client-libraries/ \
-      && mkdir -p "$(uname -m)" \
-      && ln libsignal_jni.so $(uname -m)/
+COPY --from=builder-libsignal /build/dist/ /tmp/
 
 COPY ext/libraries/libsignal-client/signal-cli-native.patch /tmp/signal-cli-native.patch
 COPY ext/patches/signal-cli-native-arch.patch /tmp/signal-cli-native-arch.patch
@@ -61,7 +62,7 @@ RUN dpkg-reconfigure debconf --frontend=noninteractive \
 	&& apt-get -qqy install --no-install-recommends \
 		wget software-properties-common git locales zip unzip \
 		file build-essential libz-dev zlib1g-dev < /dev/null > /dev/null \
-	&& rm -rf /var/lib/apt/lists/* 
+	&& rm -rf /var/lib/apt/lists/*
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     dpkg-reconfigure --frontend=noninteractive locales && \
@@ -72,7 +73,7 @@ ENV JAVA_OPTS="-Djdk.lang.Process.launchMechanism=vfork"
 ENV LANG en_US.UTF-8
 
 RUN cd /tmp/ \
-	&& git clone https://github.com/swaggo/swag.git swag-${SWAG_VERSION} \	
+	&& git clone https://github.com/swaggo/swag.git swag-${SWAG_VERSION} \
 	&& cd swag-${SWAG_VERSION} \
 	&& git checkout -q v${SWAG_VERSION} \
 	&& make -s < /dev/null > /dev/null \
@@ -172,7 +173,7 @@ RUN cd /tmp/signal-cli-rest-api-src && go build -o signal-cli-rest-api main.go
 RUN cd /tmp/signal-cli-rest-api-src && go test ./client -v
 
 # build supervisorctl_config_creator
-RUN cd /tmp/signal-cli-rest-api-src/scripts && go build -o jsonrpc2-helper 
+RUN cd /tmp/signal-cli-rest-api-src/scripts && go build -o jsonrpc2-helper
 
 # build plugin_loader
 RUN cd /tmp/signal-cli-rest-api-src && go build -buildmode=plugin -o signal-cli-rest-api_plugin_loader.so plugin_loader.go
@@ -198,7 +199,7 @@ ENV SIGNAL_CLI_REST_API_PLUGIN_SHARED_OBJ_DIR=/usr/bin/
 RUN dpkg-reconfigure debconf --frontend=noninteractive \
 	&& apt-get -qq update \
 	&& apt-get -qq install -y --no-install-recommends util-linux supervisor netcat openjdk-21-jre curl locales < /dev/null > /dev/null \
-	&& rm -rf /var/lib/apt/lists/* 
+	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=buildcontainer /tmp/signal-cli-rest-api-src/signal-cli-rest-api /usr/bin/signal-cli-rest-api
 COPY --from=buildcontainer /opt/signal-cli-${SIGNAL_CLI_VERSION} /opt/signal-cli-${SIGNAL_CLI_VERSION}
