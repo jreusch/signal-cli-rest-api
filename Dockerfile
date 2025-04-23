@@ -47,7 +47,11 @@ ARG GRAALVM_VERSION
 ARG BUILD_VERSION_ARG
 ARG SIGNAL_CLI_NATIVE_PACKAGE_VERSION
 
-COPY --from=builder-libsignal /build/dist/ /tmp/
+COPY --from=builder-libsignal /build/dist/ /tmp/libsignal-client-libraries/
+RUN cd /tmp/libsignal-client-libraries/ \
+      && mkdir -p "$(uname -m)" \
+      && ln libsignal_jni.so $(uname -m)/
+
 COPY ext/libraries/libsignal-client/signal-cli-native.patch /tmp/signal-cli-native.patch
 COPY ext/patches/signal-cli-native-arch.patch /tmp/signal-cli-native-arch.patch
 
