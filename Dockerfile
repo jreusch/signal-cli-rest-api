@@ -12,7 +12,6 @@ ARG BUILD_VERSION_ARG=unset
 # libsignal build
 FROM docker.io/rust:1.86-bookworm as builder-libsignal
 ARG LIBSIGNAL_CLIENT_VERSION
-ARG LIBSIGNAL_CLIENT_COMMIT_CHECK
 
 RUN apt-get update  \
     && apt-get install -y --no-install-recommends \
@@ -25,15 +24,16 @@ WORKDIR /build
 RUN mkdir dist
 # use architecture specific libsignal_jni.so
 # TODO not used for aarch64?!
-RUN arch="$(uname -m)"; \
-        git clone --branch v${LIBSIGNAL_CLIENT_VERSION} --depth 1 https://github.com/signalapp/libsignal.git \
+RUN arch="$(uname -m)" \
+#        && cargo install cross --git https://github.com/cross-rs/cross \
+        && git clone --branch v${LIBSIGNAL_CLIENT_VERSION} --depth 1 https://github.com/signalapp/libsignal.git \
 		&& cd libsignal \
         && case "$arch" in \
             aarch64) \
-			  cross build --target aarch64-unknown-linux-gnu --release -p libsignal-jni \
+			  cargo build --target aarch64-unknown-linux-gnu --release -p libsignal-jni \
 			;; \
             armv7l) \
-			  cross build --target armv7-unknown-linux-gnueabihf --release -p libsignal-jni \
+			  cargo build --target armv7-unknown-linux-gnueabihf --release -p libsignal-jni \
 			;; \
             x86_64) \
               cargo build --target x86_64-unknown-linux-gnu --release -p libsignal-jni \
