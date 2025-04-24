@@ -2,6 +2,8 @@ services:
   libsignal:
     build:
       target: builder-libsignal
+    environment:
+      - DOCKER_HOST
   signal-cli-rest-api:
     image: bbernhard/signal-cli-rest-api:latest
     build: .
