@@ -19,6 +19,8 @@ RUN apt-get update  \
       clang libclang-dev cmake make protobuf-compiler git \
       cargo \
       ca-certificates \
+      gcc-arm-linux-gnueabihf \
+      g++-arm-linux-gnueabihf \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKERVERSION}.tgz \
