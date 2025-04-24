@@ -21,6 +21,8 @@ RUN apt-get update  \
       ca-certificates \
       gcc-arm-linux-gnueabihf \
       g++-arm-linux-gnueabihf \
+      gcc-aarch64-linux-gnu \
+      g++-aarch64-linux-gnu \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKERVERSION}.tgz \
